@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antibiotic Spectrum Atlas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .tab-button {
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            background-color: #e5e7eb;
+            color: #4b5563;
+        }
+        .tab-button.active {
+            background-color: #3b82f6;
+            color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3), 0 2px 4px -1px rgba(59, 130, 246, 0.2);
+        }
+        .tab-button:hover:not(.active) {
+            background-color: #d1d5db;
+        }
+        .pathogen-item {
+            cursor: help; /* Indicate hover functionality */
+            position: relative;
+            display: inline-block;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            background-color: #e0f2fe; /* light blue */
+            color: #0c4a6e; /* dark blue */
+            font-size: 0.875rem;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .pathogen-item:hover {
+            background-color: #bfdbfe; /* slightly darker blue on hover */
+        }
+        .tooltip {
+            visibility: hidden;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            position: absolute;
+            z-index: 10;
+            bottom: 125%; /* Position above the pathogen */
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+            font-size: 0.75rem;
+        }
+        .pathogen-item:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        .resistance-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px; /* full rounded */
+            font-size: 0.75rem;
+            font-weight: 600;
+            background-color: #fee2e2; /* light red */
+            color: #dc2626; /* dark red */
+            margin-left: 0.5rem;
+        }
+        .spectrum-bar-container {
+            width: 100%;
+            background-color: #e5e7eb;
+            border-radius: 0.375rem;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        .spectrum-bar {
+            height: 0.75rem;
+            background-color: #34d399; /* green */
+            transition: width 0.3s ease-in-out;
+            border-radius: 0.375rem;
+        }
+        .no-coverage-bar {
+            background-color: #fca5a5; /* red */
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .printable-card, .printable-card * {
+                visibility: visible;
+            }
+            .printable-card {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                box-shadow: none;
+                margin: 0;
+                padding: 1rem;
+                page-break-after: always; /* Ensure each card prints on a new page */
+            }
+            .printable-card:last-child {
+                page-break-after: auto;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+        /* Custom modal styles for alerts */
+        .custom-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .custom-modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        .custom-modal-button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            margin-top: 1.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .custom-modal-button:hover {
+            background-color: #2563eb;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-700">
+    <div class="container py-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-blue-600 mb-2">Antibiotic Spectrum Atlas</h1>
+            <p class="text-lg text-gray-600 mb-1">A Visual Guide to Antibiotic Classes with Interactive Coverage Maps</p>
+            <p class="text-md text-gray-500">By Luqman Bin Fahad, PharmD Intern</p>
+            <p class="text-md text-gray-500 mt-2">Reinforcing Antimicrobial Stewardship Principles</p>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="flex justify-center space-x-4 mb-8 no-print">
+            <button class="tab-button active" data-tab="classes">Antibiotic Classes</button>
+            <button class="tab-button" data-tab="comparison">Spectrum Comparison</button>
+            <button class="tab-button" data-tab="recommender">Empiric Therapy</button>
+            <button class="tab-button" data-tab="dosing">Dosing Calculator</button>
+        </nav>
+
+        <!-- Tab Content -->
+        <div id="classes" class="tab-content">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">Antibiotic Classes Overview</h2>
+            <div id="antibiotic-classes-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Antibiotic class cards will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <div id="comparison" class="tab-content hidden">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">Spectrum Comparison View</h2>
+            <div class="card">
+                <p class="text-gray-600 mb-4">Select antibiotics to compare their coverage across common pathogens.</p>
+                <div id="antibiotic-selection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-6">
+                    <!-- Checkboxes for antibiotics will be dynamically inserted here -->
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                        <thead>
+                            <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                <th class="py-3 px-4 border-b">Pathogen</th>
+                                <!-- Selected antibiotic headers will be inserted here -->
+                            </tr>
+                        </thead>
+                        <tbody id="comparison-table-body" class="divide-y divide-gray-200">
+                            <!-- Comparison rows will be dynamically inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="recommender" class="tab-content hidden">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">Empiric Therapy Recommender</h2>
+            <div class="card">
+                <p class="text-gray-600 mb-4">Select an infection site to get first-line empiric therapy recommendations.</p>
+                <div class="mb-4">
+                    <label for="infection-site-select" class="block text-sm font-medium text-gray-700 mb-1">Infection Site:</label>
+                    <select id="infection-site-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="">-- Select an Infection Site --</option>
+                        <!-- Options will be dynamically inserted -->
+                    </select>
+                </div>
+                <div id="recommender-results" class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg hidden">
+                    <h3 class="text-lg font-semibold text-blue-800 mb-2">Recommended Empiric Therapy:</h3>
+                    <ul id="recommended-drugs" class="list-disc list-inside text-blue-700"></ul>
+                    <h3 class="text-lg font-semibold text-blue-800 mt-4 mb-2">Common Pathogens:</h3>
+                    <ul id="common-pathogens" class="list-disc list-inside text-blue-700"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="dosing" class="tab-content hidden">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">Dosing Calculator (Renal Adjustment)</h2>
+            <div class="card">
+                <p class="text-gray-600 mb-4">Calculate adjusted antibiotic doses based on patient's renal function.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="patient-weight" class="block text-sm font-medium text-gray-700 mb-1">Weight (kg):</label>
+                        <input type="number" id="patient-weight" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="e.g., 70">
+                    </div>
+                    <div>
+                        <label for="serum-creatinine" class="block text-sm font-medium text-gray-700 mb-1">Serum Creatinine (mg/dL):</label>
+                        <input type="number" id="serum-creatinine" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="e.g., 1.0">
+                    </div>
+                    <div>
+                        <label for="patient-age" class="block text-sm font-medium text-gray-700 mb-1">Age (years):</label>
+                        <input type="number" id="patient-age" class="mt-1 block w-full pl-3 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="e.g., 65">
+                    </div>
+                    <div>
+                        <label for="patient-gender" class="block text-sm font-medium text-gray-700 mb-1">Gender:</label>
+                        <select id="patient-gender" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <label for="drug-for-dosing" class="block text-sm font-medium text-gray-700 mb-1">Select Drug:</label>
+                    <select id="drug-for-dosing" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="">-- Select an Antibiotic --</option>
+                        <!-- Drugs with dosing info will be dynamically inserted -->
+                    </select>
+                </div>
+                <button id="calculate-dosing" class="mt-6 w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md transition-colors">Calculate Adjusted Dose</button>
+
+                <div id="dosing-results" class="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg hidden">
+                    <h3 class="text-lg font-semibold text-green-800 mb-2">Calculated Dosing:</h3>
+                    <p class="text-green-700" id="creatinine-clearance-display"></p>
+                    <p class="text-green-700" id="adjusted-dose-display"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden container for printable cards -->
+        <div id="printable-cards-container" class="no-print"></div>
+
+        <!-- Custom Modal for Alerts -->
+        <div id="custom-alert-modal" class="custom-modal hidden">
+            <div class="custom-modal-content">
+                <p id="custom-alert-message" class="text-gray-800 text-lg"></p>
+                <button id="custom-alert-ok-button" class="custom-modal-button">OK</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Custom alert function to replace window.alert()
+        function showAlert(message) {
+            const modal = document.getElementById('custom-alert-modal');
+            const msgElement = document.getElementById('custom-alert-message');
+            const okButton = document.getElementById('custom-alert-ok-button');
+
+            msgElement.textContent = message;
+            modal.classList.remove('hidden');
+
+            okButton.onclick = () => {
+                modal.classList.add('hidden');
+            };
+        }
+
+        // Data for the Antibiotic Spectrum Atlas
+        const antibioticData = {
+            "Penicillins": {
+                description: "Broad class of beta-lactam antibiotics that inhibit bacterial cell wall synthesis.",
+                drugs: {
+                    "Amoxicillin": {
+                        coverage: ["Streptococcus pneumoniae", "Haemophilus influenzae", "Moraxella catarrhalis", "Enterococcus faecalis"],
+                        resistance: ["MRSA", "Pseudomonas aeruginosa", "Klebsiella pneumoniae"],
+                        firstLineFor: {
+                            "Streptococcus pneumoniae": "Amoxicillin",
+                            "Haemophilus influenzae": "Amoxicillin/Clavulanate",
+                            "Enterococcus faecalis": "Amoxicillin"
+                        },
+                        spectrumScore: 70, // Hypothetical score for visual chart
+                        dosing: { default: "250-500 mg PO q8h", renalAdjust: { crcl30_50: "250-500 mg PO q12h", crcl10_30: "250-500 mg PO q24h", crcl_lt10: "250 mg PO q24h" } }
+                    },
+                    "Piperacillin/Tazobactam": {
+                        coverage: ["Pseudomonas aeruginosa", "Escherichia coli", "Klebsiella pneumoniae", "Bacteroides fragilis", "Enterococcus faecalis", "Staphylococcus aureus (MSSA)", "Streptococcus pneumoniae"],
+                        resistance: ["MRSA", "VRE"],
+                        firstLineFor: {
+                            "Pseudomonas aeruginosa": "Piperacillin/Tazobactam",
+                            "Bacteroides fragilis": "Piperacillin/Tazobactam"
+                        },
+                        spectrumScore: 95,
+                        dosing: { default: "3.375 g IV q6h", renalAdjust: { crcl20_40: "2.25 g IV q6h", crcl_lt20: "2.25 g IV q8h" } }
+                    }
+                }
+            },
+            "Cephalosporins": {
+                description: "Beta-lactam antibiotics, similar to penicillins, with increasing gram-negative coverage with generation.",
+                drugs: {
+                    "Cefazolin (1st Gen)": {
+                        coverage: ["Staphylococcus aureus (MSSA)", "Streptococcus pyogenes", "Streptococcus pneumoniae"],
+                        resistance: ["MRSA", "Pseudomonas aeruginosa", "Enterococcus faecalis"],
+                        firstLineFor: { "Staphylococcus aureus (MSSA)": "Cefazolin" },
+                        spectrumScore: 60,
+                        dosing: { default: "1-2 g IV q8h", renalAdjust: { crcl30_50: "1 g IV q8-12h", crcl10_30: "0.5-1 g IV q12-24h", crcl_lt10: "0.5 g IV q24h" } }
+                    },
+                    "Ceftriaxone (3rd Gen)": {
+                        coverage: ["Streptococcus pneumoniae", "Haemophilus influenzae", "Neisseria gonorrhoeae", "Escherichia coli", "Klebsiella pneumoniae"],
+                        resistance: ["MRSA", "Enterococcus faecalis", "Pseudomonas aeruginosa"],
+                        firstLineFor: {
+                            "Streptococcus pneumoniae": "Ceftriaxone",
+                            "Neisseria gonorrhoeae": "Ceftriaxone"
+                        },
+                        spectrumScore: 80,
+                        dosing: { default: "1-2 g IV/IM q24h", renalAdjust: { crcl_any: "No adjustment needed" } } // Example of no adjustment
+                    }
+                }
+            },
+            "Macrolides": {
+                description: "Inhibit bacterial protein synthesis, effective against atypical pathogens.",
+                drugs: {
+                    "Azithromycin": {
+                        coverage: ["Chlamydia pneumoniae", "Mycoplasma pneumoniae", "Legionella pneumophila", "Haemophilus influenzae", "Moraxella catarrhalis"],
+                        resistance: ["Enterococcus faecalis", "Pseudomonas aeruginosa"],
+                        firstLineFor: {
+                            "Chlamydia pneumoniae": "Azithromycin",
+                            "Mycoplasma pneumoniae": "Azithromycin",
+                            "Legionella pneumophila": "Azithromycin"
+                        },
+                        spectrumScore: 75,
+                        dosing: { default: "500 mg PO x1 then 250 mg PO q24h x4 days", renalAdjust: { crcl_any: "No adjustment needed" } }
+                    },
+                    "Clarithromycin": {
+                        coverage: ["Streptococcus pneumoniae", "Haemophilus influenzae", "Moraxella catarrhalis", "Helicobacter pylori"],
+                        resistance: ["Pseudomonas aeruginosa"],
+                        firstLineFor: { "Helicobacter pylori": "Clarithromycin (in combination)" },
+                        spectrumScore: 70,
+                        dosing: { default: "250-500 mg PO q12h", renalAdjust: { crcl_lt30: "50% dose reduction" } }
+                    }
+                }
+            },
+            "Fluoroquinolones": {
+                description: "Broad-spectrum antibiotics that inhibit bacterial DNA gyrase and topoisomerase IV.",
+                drugs: {
+                    "Ciprofloxacin": {
+                        coverage: ["Pseudomonas aeruginosa", "Escherichia coli", "Klebsiella pneumoniae", "Haemophilus influenzae", "Neisseria gonorrhoeae"],
+                        resistance: ["MRSA", "Streptococcus pneumoniae"],
+                        firstLineFor: {
+                            "Pseudomonas aeruginosa": "Ciprofloxacin",
+                            "Escherichia coli (UTI)": "Ciprofloxacin"
+                        },
+                        spectrumScore: 85,
+                        dosing: { default: "500 mg PO q12h", renalAdjust: { crcl30_50: "250-500 mg PO q12h", crcl_lt30: "250-500 mg PO q18-24h" } }
+                    },
+                    "Levofloxacin": {
+                        coverage: ["Streptococcus pneumoniae", "Haemophilus influenzae", "Moraxella catarrhalis", "Chlamydia pneumoniae", "Mycoplasma pneumoniae", "Legionella pneumophila", "Escherichia coli", "Klebsiella pneumoniae"],
+                        resistance: ["MRSA", "Pseudomonas aeruginosa (variable)"],
+                        firstLineFor: {
+                            "Streptococcus pneumoniae (CAP)": "Levofloxacin",
+                            "Mycoplasma pneumoniae": "Levofloxacin"
+                        },
+                        spectrumScore: 90,
+                        dosing: { default: "500-750 mg PO/IV q24h", renalAdjust: { crcl20_49: "750 mg q48h or 500 mg q24h", crcl10_19: "750 mg q48h x1 then 500 mg q48h" } }
+                    }
+                }
+            },
+            "Aminoglycosides": {
+                description: "Potent broad-spectrum antibiotics, primarily for severe gram-negative infections, inhibit protein synthesis.",
+                drugs: {
+                    "Gentamicin": {
+                        coverage: ["Pseudomonas aeruginosa", "Escherichia coli", "Klebsiella pneumoniae", "Serratia marcescens"],
+                        resistance: ["Anaerobes", "Gram-positives (unless synergistic)"],
+                        firstLineFor: {
+                            "Pseudomonas aeruginosa (severe)": "Gentamicin (in combination)",
+                            "Enterococcal endocarditis": "Gentamicin (synergistic)"
+                        },
+                        spectrumScore: 65,
+                        dosing: { default: "3-5 mg/kg/day IV divided q8h", renalAdjust: { crcl_adjust: "Adjust based on CrCl and levels" } } // Requires more complex adjustment
+                    },
+                    "Tobramycin": {
+                        coverage: ["Pseudomonas aeruginosa", "Escherichia coli", "Klebsiella pneumoniae"],
+                        resistance: ["Anaerobes", "Gram-positives (unless synergistic)"],
+                        firstLineFor: {
+                            "Pseudomonas aeruginosa (cystic fibrosis)": "Tobramycin"
+                        },
+                        spectrumScore: 65,
+                        dosing: { default: "3-5 mg/kg/day IV divided q8h", renalAdjust: { crcl_adjust: "Adjust based on CrCl and levels" } }
+                    }
+                }
+            }
+        };
+
+        const allPathogens = [
+            "Staphylococcus aureus (MSSA)", "Staphylococcus aureus (MRSA)", "Streptococcus pneumoniae",
+            "Streptococcus pyogenes", "Haemophilus influenzae", "Moraxella catarrhalis",
+            "Escherichia coli", "Klebsiella pneumoniae", "Pseudomonas aeruginosa",
+            "Enterococcus faecalis", "Bacteroides fragilis", "Chlamydia pneumoniae",
+            "Mycoplasma pneumoniae", "Legionella pneumophila", "Neisseria gonorrhoeae",
+            "Helicobacter pylori"
+        ];
+
+        const infectionSites = {
+            "Community-Acquired Pneumonia": {
+                commonPathogens: ["Streptococcus pneumoniae", "Mycoplasma pneumoniae", "Chlamydia pneumoniae", "Haemophilus influenzae", "Legionella pneumophila"],
+                empiricTherapy: ["Azithromycin", "Doxycycline", "Levofloxacin", "Amoxicillin"]
+            },
+            "Urinary Tract Infection (Uncomplicated)": {
+                commonPathogens: ["Escherichia coli", "Klebsiella pneumoniae"],
+                empiricTherapy: ["Trimethoprim/Sulfamethoxazole", "Nitrofurantoin", "Ciprofloxacin", "Levofloxacin"]
+            },
+            "Skin & Soft Tissue Infection (Uncomplicated)": {
+                commonPathogens: ["Staphylococcus aureus (MSSA)", "Streptococcus pyogenes"],
+                empiricTherapy: ["Cephalexin", "Dicloxacillin", "Clindamycin"]
+            },
+            "Intra-abdominal Infection (Community-Acquired)": {
+                commonPathogens: ["Escherichia coli", "Bacteroides fragilis", "Klebsiella pneumoniae"],
+                empiricTherapy: ["Piperacillin/Tazobactam", "Ceftriaxone + Metronidazole"]
+            },
+            "Meningitis (Bacterial)": {
+                commonPathogens: ["Streptococcus pneumoniae", "Neisseria meningitidis", "Haemophilus influenzae"],
+                empiricTherapy: ["Ceftriaxone", "Vancomycin (for S. pneumoniae resistance)"]
+            }
+        };
+
+        // Utility function to get all unique drug names
+        function getAllDrugNames() {
+            const drugs = [];
+            for (const classKey in antibioticData) {
+                for (const drugName in antibioticData[classKey].drugs) {
+                    drugs.push(drugName);
+                }
+            }
+            return drugs;
+        }
+
+        // --- DOM Elements ---
+        const antibioticClassesContainer = document.getElementById('antibiotic-classes-container');
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        const antibioticSelectionDiv = document.getElementById('antibiotic-selection');
+        const comparisonTableBody = document.getElementById('comparison-table-body');
+
+        const infectionSiteSelect = document.getElementById('infection-site-select');
+        const recommenderResultsDiv = document.getElementById('recommender-results');
+        const recommendedDrugsUl = document.getElementById('recommended-drugs');
+        const commonPathogensUl = document.getElementById('common-pathogens');
+
+        const patientWeightInput = document.getElementById('patient-weight');
+        const serumCreatinineInput = document.getElementById('serum-creatinine');
+        const patientAgeInput = document.getElementById('patient-age');
+        const patientGenderSelect = document.getElementById('patient-gender');
+        const drugForDosingSelect = document.getElementById('drug-for-dosing');
+        const calculateDosingButton = document.getElementById('calculate-dosing');
+        const dosingResultsDiv = document.getElementById('dosing-results');
+        const creatinineClearanceDisplay = document.getElementById('creatinine-clearance-display');
+        const adjustedDoseDisplay = document.getElementById('adjusted-dose-display');
+
+        const printableCardsContainer = document.getElementById('printable-cards-container');
+
+        // --- Functions ---
+
+        // Render Antibiotic Classes Tab
+        function renderAntibioticClasses() {
+            antibioticClassesContainer.innerHTML = ''; // Clear previous content
+            for (const classKey in antibioticData) {
+                const classInfo = antibioticData[classKey];
+                const classCard = document.createElement('div');
+                classCard.className = 'card';
+                classCard.innerHTML = `
+                    <h3 class="text-xl font-semibold text-blue-700 mb-2">${classKey}</h3>
+                    <p class="text-gray-600 text-sm mb-4">${classInfo.description}</p>
+                    <div class="space-y-4">
+                        ${Object.entries(classInfo.drugs).map(([drugName, drugInfo]) => `
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <h4 class="text-lg font-medium text-gray-800 mb-2">${drugName}
+                                    <button class="print-card-btn text-blue-500 hover:text-blue-700 text-sm ml-2 float-right no-print" data-drug="${drugName}" data-class="${classKey}">
+                                        Print Card
+                                    </button>
+                                </h4>
+                                <p class="text-sm font-semibold text-gray-700 mb-1">Coverage:</p>
+                                <div class="flex flex-wrap mb-2">
+                                    ${drugInfo.coverage.map(pathogen => `
+                                        <span class="pathogen-item" data-pathogen="${pathogen}">
+                                            ${pathogen}
+                                            <span class="tooltip">First-line for: ${drugInfo.firstLineFor[pathogen] || 'N/A'}</span>
+                                        </span>
+                                    `).join('')}
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700 mb-1">Resistance:</p>
+                                <div class="flex flex-wrap mb-2">
+                                    ${drugInfo.resistance.map(res => `
+                                        <span class="resistance-badge">
+                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                                            ${res}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700 mt-2 mb-1">Visual Spectrum:</p>
+                                <div class="spectrum-bar-container">
+                                    <div class="spectrum-bar" style="width: ${drugInfo.spectrumScore || 50}%;"></div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                antibioticClassesContainer.appendChild(classCard);
+            }
+
+            // Add event listeners for print buttons
+            document.querySelectorAll('.print-card-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const drugName = event.target.dataset.drug;
+                    const classKey = event.target.dataset.class;
+                    generatePrintableCard(classKey, drugName);
+                });
+            });
+        }
+
+        // Generate Printable Card
+        function generatePrintableCard(classKey, drugName) {
+            const drugInfo = antibioticData[classKey].drugs[drugName];
+            if (!drugInfo) return;
+
+            const cardHtml = `
+                <div class="printable-card card w-full max-w-md mx-auto p-6 border border-gray-300 shadow-lg text-gray-800">
+                    <h3 class="text-2xl font-bold text-blue-700 mb-3">${drugName}</h3>
+                    <p class="text-sm text-gray-600 mb-4">(${classKey})</p>
+
+                    <div class="mb-4">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">Coverage:</h4>
+                        <ul class="list-disc list-inside text-gray-700 text-sm">
+                            ${drugInfo.coverage.map(p => `<li>${p}</li>`).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h4 class="text-lg font-semibold text-red-700 mb-2">Resistance:</h4>
+                        <ul class="list-disc list-inside text-red-600 text-sm">
+                            ${drugInfo.resistance.map(r => `<li>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">First-Line For:</h4>
+                        <ul class="list-disc list-inside text-gray-700 text-sm">
+                            ${Object.entries(drugInfo.firstLineFor).map(([pathogen, drug]) => `<li>${pathogen}: ${drug}</li>`).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="mb-4">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-2">Typical Dosing:</h4>
+                        <p class="text-gray-700 text-sm">${drugInfo.dosing?.default || 'N/A'}</p>
+                    </div>
+
+                    <div class="text-xs text-gray-500 mt-6 text-center">
+                        Antibiotic Spectrum Atlas - Quick Reference
+                    </div>
+                </div>
+            `;
+
+            // Append to a hidden container and trigger print
+            printableCardsContainer.innerHTML = cardHtml;
+            window.print();
+            printableCardsContainer.innerHTML = ''; // Clear after print
+        }
+
+        // Render Spectrum Comparison Tab
+        function renderSpectrumComparison() {
+            antibioticSelectionDiv.innerHTML = '';
+            const allDrugs = getAllDrugNames();
+            allDrugs.forEach(drugName => {
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'flex items-center';
+                checkboxDiv.innerHTML = `
+                    <input type="checkbox" id="compare-${drugName.replace(/\s/g, '-')}" value="${drugName}" class="compare-drug-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="compare-${drugName.replace(/\s/g, '-')}" class="ml-2 block text-sm text-gray-900">${drugName}</label>
+                `;
+                antibioticSelectionDiv.appendChild(checkboxDiv);
+            });
+
+            document.querySelectorAll('.compare-drug-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateComparisonTable);
+            });
+            updateComparisonTable(); // Initial render
+        }
+
+        function updateComparisonTable() {
+            const selectedDrugs = Array.from(document.querySelectorAll('.compare-drug-checkbox:checked')).map(cb => cb.value);
+
+            // Clear table
+            comparisonTableBody.innerHTML = '';
+            const headerRow = document.querySelector('#comparison table thead tr');
+            // Remove previous drug headers, keep only Pathogen
+            Array.from(headerRow.children).slice(1).forEach(child => child.remove());
+
+            // Add new drug headers
+            selectedDrugs.forEach(drugName => {
+                const th = document.createElement('th');
+                th.className = 'py-3 px-4 border-b';
+                th.textContent = drugName;
+                headerRow.appendChild(th);
+            });
+
+            allPathogens.forEach(pathogen => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `<td class="py-2 px-4 border-b text-sm font-medium text-gray-900">${pathogen}</td>`;
+
+                selectedDrugs.forEach(selectedDrug => {
+                    const td = document.createElement('td');
+                    td.className = 'py-2 px-4 border-b text-sm text-center';
+                    let hasCoverage = false;
+                    let isFirstLine = false;
+
+                    for (const classKey in antibioticData) {
+                        const drugInfo = antibioticData[classKey].drugs[selectedDrug];
+                        if (drugInfo) {
+                            if (drugInfo.coverage.includes(pathogen)) {
+                                hasCoverage = true;
+                            }
+                            if (drugInfo.firstLineFor[pathogen] === selectedDrug) {
+                                isFirstLine = true;
+                            }
+                            break; // Found the drug
+                        }
+                    }
+
+                    if (hasCoverage) {
+                        td.innerHTML = `<span class="text-green-600 font-bold text-xl">&#10003;</span>`; // Checkmark
+                        if (isFirstLine) {
+                            td.innerHTML += `<span class="ml-1 text-blue-500 text-xs">(1st Line)</span>`;
+                        }
+                    } else {
+                        td.innerHTML = `<span class="text-red-600 font-bold text-xl">&#10007;</span>`; // X mark
+                    }
+                    tr.appendChild(td);
+                });
+                comparisonTableBody.appendChild(tr);
+            });
+        }
+
+        // Render Empiric Therapy Recommender Tab
+        function renderEmpiricRecommender() {
+            infectionSiteSelect.innerHTML = '<option value="">-- Select an Infection Site --</option>';
+            for (const site in infectionSites) {
+                const option = document.createElement('option');
+                option.value = site;
+                option.textContent = site;
+                infectionSiteSelect.appendChild(option);
+            }
+
+            infectionSiteSelect.addEventListener('change', () => {
+                const selectedSite = infectionSiteSelect.value;
+                if (selectedSite) {
+                    const siteInfo = infectionSites[selectedSite];
+                    recommendedDrugsUl.innerHTML = siteInfo.empiricTherapy.map(drug => `<li>${drug}</li>`).join('');
+                    commonPathogensUl.innerHTML = siteInfo.commonPathogens.map(pathogen => `<li>${pathogen}</li>`).join('');
+                    recommenderResultsDiv.classList.remove('hidden');
+                } else {
+                    recommenderResultsDiv.classList.add('hidden');
+                }
+            });
+        }
+
+        // Render Dosing Calculator Tab
+        function renderDosingCalculator() {
+            drugForDosingSelect.innerHTML = '<option value="">-- Select an Antibiotic --</option>';
+            for (const classKey in antibioticData) {
+                for (const drugName in antibioticData[classKey].drugs) {
+                    const drugInfo = antibioticData[classKey].drugs[drugName];
+                    if (drugInfo.dosing) { // Only add drugs with dosing information
+                        const option = document.createElement('option');
+                        option.value = drugName;
+                        option.textContent = drugName;
+                        drugForDosingSelect.appendChild(option);
+                    }
+                }
+            }
+
+            calculateDosingButton.addEventListener('click', calculateDose);
+        }
+
+        // Calculate Creatinine Clearance (Cockcroft-Gault)
+        function calculateCrCl(weight, serumCr, age, gender) {
+            if (!weight || !serumCr || !age) return null;
+
+            let crCl = ((140 - age) * weight) / (72 * serumCr);
+            if (gender === 'female') {
+                crCl *= 0.85;
+            }
+            return crCl;
+        }
+
+        // Calculate Adjusted Dose
+        function calculateDose() {
+            const weight = parseFloat(patientWeightInput.value);
+            const serumCr = parseFloat(serumCreatinineInput.value);
+            const age = parseFloat(patientAgeInput.value);
+            const gender = patientGenderSelect.value;
+            const selectedDrugName = drugForDosingSelect.value;
+
+            if (!weight || !serumCr || !age || !selectedDrugName) {
+                showAlert("Please fill in all patient details and select a drug.");
+                return;
+            }
+
+            const crCl = calculateCrCl(weight, serumCr, age, gender);
+            if (crCl === null) {
+                showAlert("Invalid input for creatinine clearance calculation.");
+                return;
+            }
+
+            creatinineClearanceDisplay.textContent = `Estimated Creatinine Clearance (CrCl): ${crCl.toFixed(2)} mL/min`;
+
+            let drugInfo = null;
+            for (const classKey in antibioticData) {
+                if (antibioticData[classKey].drugs[selectedDrugName]) {
+                    drugInfo = antibioticData[classKey].drugs[selectedDrugName];
+                    break;
+                }
+            }
+
+            if (!drugInfo || !drugInfo.dosing) {
+                adjustedDoseDisplay.textContent = `Dosing information not available for ${selectedDrugName}.`;
+                dosingResultsDiv.classList.remove('hidden');
+                dosingResultsDiv.classList.remove('bg-green-50');
+                dosingResultsDiv.classList.add('bg-red-50');
+                return;
+            }
+
+            let adjustedDose = drugInfo.dosing.default;
+            const renalAdjustments = drugInfo.dosing.renalAdjust;
+
+            if (renalAdjustments) {
+                if (renalAdjustments.crcl_any) {
+                    adjustedDose = renalAdjustments.crcl_any;
+                } else if (crCl >= 50) {
+                    adjustedDose = drugInfo.dosing.default;
+                } else if (crCl >= 30 && crCl < 50 && renalAdjustments.crcl30_50) {
+                    adjustedDose = renalAdjustments.crcl30_50;
+                } else if (crCl >= 20 && crCl < 30 && renalAdjustments.crcl20_40) { // Specific for some drugs
+                    adjustedDose = renalAdjustments.crcl20_40;
+                } else if (crCl >= 10 && crCl < 30 && renalAdjustments.crcl10_30) {
+                    adjustedDose = renalAdjustments.crcl10_30;
+                } else if (crCl < 10 && renalAdjustments.crcl_lt10) {
+                    adjustedDose = renalAdjustments.crcl_lt10;
+                } else if (crCl < 30 && renalAdjustments.crcl_lt30) { // General for some drugs
+                    adjustedDose = renalAdjustments.crcl_lt30;
+                } else if (renalAdjustments.crcl_adjust) {
+                    adjustedDose = renalAdjustments.crcl_adjust; // Placeholder for complex adjustments
+                } else {
+                    adjustedDose = `Consider dose adjustment based on CrCl: ${crCl.toFixed(2)} mL/min. Consult guidelines.`;
+                }
+            }
+
+            adjustedDoseDisplay.textContent = `Adjusted Dose for ${selectedDrugName}: ${adjustedDose}`;
+            dosingResultsDiv.classList.remove('hidden');
+            dosingResultsDiv.classList.remove('bg-red-50');
+            dosingResultsDiv.classList.add('bg-green-50');
+        }
+
+
+        // --- Tab Switching Logic ---
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                // Deactivate all buttons and hide all content
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.add('hidden'));
+
+                // Activate clicked button and show corresponding content
+                button.classList.add('active');
+                document.getElementById(button.dataset.tab).classList.remove('hidden');
+
+                // Re-render content for the activated tab if needed
+                if (button.dataset.tab === 'comparison') {
+                    renderSpectrumComparison();
+                } else if (button.dataset.tab === 'recommender') {
+                    renderEmpiricRecommender();
+                } else if (button.dataset.tab === 'dosing') {
+                    renderDosingCalculator();
+                }
+            });
+        });
+
+        // Initial render of the default tab
+        document.addEventListener('DOMContentLoaded', () => {
+            renderAntibioticClasses(); // Always render classes first
+            renderSpectrumComparison(); // Pre-render comparison checkboxes
+            renderEmpiricRecommender(); // Pre-render recommender options
+            renderDosingCalculator(); // Pre-render dosing options
+        });
+
+    </script>
+</body>
+</html>
